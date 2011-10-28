@@ -1,0 +1,127 @@
+//-----------------------------------
+//--- 010 Editor v1.0 Script File
+//
+// File:     ShowAsUTF8.1sc
+// Author:   Anders Hasselqvist
+// Revision: 1.0
+// Purpose:  Display the selected text as utf8
+//-----------------------------------
+
+// Define variables
+
+/*
+UTF8
+1 byte: 0xxxxxxx
+2 byte: 110yyyyx    10xxxxxx
+3 byte: 1110zzzz    10zyyyyx    10xxxxxx
+4 byte: 11110uuu    10uuzzzz    10zyyyyx    10xxxxxx
+
+UTF16:
+1 byte: 00000000 0xxxxxxx
+2 byte: 00000yyy yxxxxxxx
+3 byte: zzzzzyyy yxxxxxxx
+4 byte: 110110ww wwzzzzzy    110111yy yxxxxxxx    
+*/
+
+#define HIGH  0x80
+
+int UTF8ToUTF16(int64 aStart, int64 aLength, wstring &aS)
+{
+    uchar byte1;
+    uchar byte2;
+    ushort c;
+    uchar data[aLength];
+    int mode;
+    int i;
+
+    ReadBytes(data, aStart, aLength);
+
+    for(i = 0; i < aLength; ++i)
+    {
+        Printf("Loop %d\n", i);
+        Printf("%x\n", data[i] & 0xE0);
+        Printf("%x\n", data[i] & 0xF0);
+        if (data[i] & 0x7F == 0)
+        {
+            Printf("%d : %x\n", i, data[i]);
+            c = data[i];
+        }
+        else if ((data[i] & 0xE0) == 0xC0)
+        {
+            Printf("%d : %x\n", i, data[i]);
+            Printf("%d : %x\n", i + 1, data[i + 1]);
+
+            if (data[i + 1] & HIGH != HIGH)
+                return 0;
+
+            byte1 = (data[i] >> 2) & 0x03;
+            byte2 = (data[i] << 6) & 0xC0;
+            byte2 = byte2 | (data[i + 1] & 0x3F);
+            c = (byte1 << 8) | byte2;
+            i += 1;
+        }
+        else if ((data[i] & 0xF0) == 0xE0)
+        {
+            Printf("%d : %x\n", i, data[i]);
+            Printf("%d : %x\n", i + 1, data[i + 1]);
+            Printf("%d : %x\n", i + 2, data[i + 2]);
+
+            if ((data[i + 1] & HIGH != HIGH) || (data[i + 2] & HIGH != HIGH))
+                return 0;
+//3 byte: 1110zzzz    10zyyyyx    10xxxxxx
+//3 byte: zzzzzyyy yxxxxxxx
+
+            byte1 = (data[i] << 4) & 0xF0;
+            byte1 = byte1 | (data[i + 1] >> 2) & 0x0F;
+            byte2 = (data[i + 1] << 6) & 0xC0;
+            byte2 = byte2 | (data[i + 2] & 0x3F);
+            c = ((short)byte1 << 8) | byte2;
+            i += 2;
+            Printf("%x + %x -> %x\n", byte1, byte2, c);
+        }
+        else if ((data[i] & 0xF8) == 0xF0)
+        {
+            if ((data[i + 1] & HIGH != HIGH) || (data[i + 2] & HIGH != HIGH) || (data[i + 3] & HIGH != HIGH))
+                return 0;
+        }
+
+        aS += c;
+    }
+
+    return 1;
+}
+
+// Check that a file is open
+if( FileCount() == 0 )
+{
+    MessageBox( idOk, "ShowAsUTF8", "ShowAsUTF8 can only be executed when a file is loaded." );
+    return -1;
+}
+
+void Main()
+{
+    int64 start;
+    int64 size;
+    wstring s;
+
+    size = GetSelSize();
+    if (0 == size)
+    {
+        MessageBox( idOk, "ShowAsUTF8", "Nothing selected");
+        return;
+    }
+
+    start = GetSelStart();
+    if (UTF8ToUTF16(start, size, s))
+        MessageBox( idOk, "ShowAsUTF8", s);
+    else
+        MessageBox( idOk, "ShowAsUTF8", "Not a UTF8 string");
+}
+
+Main();
+        wchar_t q = 0xff71;
+        wstring aq;
+        aq += q;
+        MessageBox( idOk, "ShowAsUTF8", aq);
+        Printf("%d, %x, %lc, %s\n", sizeof(wchar_t),q, q, aq);
+return 1;
